@@ -1,4 +1,3 @@
-
 import os
 from helpers import *
 import numpy as np
@@ -6,16 +5,15 @@ import nibabel as nib
 import pydicom
 import ants
 import SimpleITK as sitk
+from concurrent.futures import ProcessPoolExecutor
 
 # DIRETÓRIOS
-
 DIR_BASE = os.path.abspath('/mnt/d/ADNI/ADNI1')
 DIR_DICOM = os.path.abspath(os.path.join(DIR_BASE, 'ADNI1_Screening', 'ADNI'))
 DIR_RAW = os.path.join(DIR_BASE, 'ADNI_nii_raw')
 DIR_OUTPUT = os.path.join(DIR_BASE, 'ADNI_nii_processed')
 
-#FUNÇÕES
-
+# FUNÇÕES
 def arq_nii(name):
     return name + ".nii.gz"
 
@@ -46,7 +44,7 @@ def convert_dicom_to_nifti(input_folder, output_folder):
     image = load_dicom_series(input_folder)
 
     # Reorienta a imagem para o padrão RAS
-    #image = reorient_image(image)
+    # image = reorient_image(image)
 
     # Formar nome de saída
     output_name = arq_nii(os.path.basename(input_folder))
@@ -58,18 +56,17 @@ def convert_dicom_to_nifti(input_folder, output_folder):
     save_as_nifti(image, output_file)
 
 # CONVERSÃO
-input_folder = DIR_DICOM
-output_folder = DIR_RAW
+if __name__ == "__main__":
+    input_folder = DIR_DICOM
+    output_folder = DIR_RAW
 
-cont = 0
+    # Coletar todas as pastas DICOM
+    dicom_folders = [os.path.join(DIR_DICOM, folder) for folder in os.listdir(DIR_DICOM)]
 
-for folder in os.listdir(DIR_DICOM):
-    item = os.path.join(DIR_DICOM, folder, 'MP-RAGE')
-    item = get_f_dir(item)
-    item = get_f_dir(item)
-    
-    convert_dicom_to_nifti(folder, DIR_RAW)
+    with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as executor:  # Usando metade do número de CPUs
+        # Mapeia a função convert_dicom_to_nifti para cada pasta DICOM
+        executor.map(lambda folder: convert_dicom_to_nifti(
+            get_f_dir(get_f_dir(os.path.join(folder, 'MP-RAGE'))), DIR_RAW), dicom_folders)
 
-    cont+=1
 
-print(f'Foram convertidas {cont} imagens!')
+    print(f'Foram convertidas {len(dicom_folders)} imagens!')
