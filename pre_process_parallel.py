@@ -5,6 +5,9 @@ import ants
 import logging
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
+from functools import partial
+from concurrent.futures import as_completed
+import gc
 
 # Configuração do logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -28,30 +31,43 @@ def normalize_image(image_data):
 # Função para processar uma única imagem
 def process_image(img_path, template, mask):
     try:
+        logger.info(f"Inicio processamento: {img_path}")
         # Carrega a imagem
         image = ants.image_read(img_path)
         data = image.numpy()
         
         # Winsorizing
         data = winsorize_image(data)
-        #logger.info(f"Winsorizing aplicado à imagem: {img_path}")
+        #logger.info(f"Winsorizing imagem: {img_path}")
 
         # Bias Field Correction
         image = ants.from_numpy(data, origin=image.origin, spacing=image.spacing, direction=image.direction)
         image = ants.n4_bias_field_correction(image, shrink_factor=2)
-        #logger.info(f"Correção de campo de viés aplicada à imagem: {img_path}")
+        #logger.info(f"Campo de vies corrigido: {img_path}")
 
         # Reaplica winsorizing
         data = image.numpy()
         data = winsorize_image(data)
         image = ants.from_numpy(data, origin=image.origin, spacing=image.spacing, direction=image.direction)
 
-        # Registro (Registration) com as transformações
-        warped_image = ants.registration(fixed=template, moving=image, type_of_transform='Translation')['warpedmovout']
-        warped_image = ants.registration(fixed=template, moving=warped_image, type_of_transform='Rigid')['warpedmovout']
-        warped_image = ants.registration(fixed=template, moving=warped_image, type_of_transform='Affine')['warpedmovout']
-        warped_image = ants.registration(fixed=template, moving=warped_image, type_of_transform='SyN')['warpedmovout']
-        #logger.info(f"Registro completo para a imagem: {img_path}")
+        # Registro (Registration) com as transformações para a imagem e máscara, com intuito de melhorar o corte
+        registration = ants.registration(fixed=template, moving=image, type_of_transform='Translation')
+        warped_image = registration['warpedmovout']
+        warped_mask = ants.apply_transforms(fixed=template, moving=mask, transformlist=registration['fwdtransforms'])
+
+        registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='Rigid')
+        warped_image = registration['warpedmovout']
+        warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
+
+        registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='Affine')
+        warped_image = registration['warpedmovout']
+        warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
+
+        registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='SyN')
+        warped_image = registration['warpedmovout']
+        warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
+        
+        #logger.info(f"Registro completo para a imagem e máscara: {img_path}")
 
         # Máscara do cérebro e extração
         brain_masked = ants.mask_image(warped_image, mask)
@@ -79,16 +95,16 @@ def process_and_save_image(img_path, template, mask, output_dir):
         gc.collect()
 
 # DIRETÓRIOS
-DIR_BASE = os.path.abspath('/home/brunop/external/ADNI/ADNI1')
+DIR_BASE = os.path.abspath('/mnt/d/ADNI/ADNI1')
 DIR_RAW = os.path.join(DIR_BASE, 'ADNI_nii_raw')
-DIR_OUTPUT = os.path.join(DIR_BASE, 'ADNI_nii_processed')
+DIR_OUTPUT = os.path.join(DIR_BASE, 'ADNI_testing_images')
 DIR_MASK = os.path.join(DIR_BASE, 'mni_icbm152_nlin_asym_09c')
 
 template_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
 mask_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c_mask.nii')
 
-template = ants.image_read(template_path, reorient='IAL')
-mask = ants.image_read(mask_path, reorient='IAL')
+template = ants.image_read(template_path)
+mask = ants.image_read(mask_path)
 
 # Lista de caminhos para as imagens brutas
 image_paths = [os.path.join(DIR_RAW, file) for file in os.listdir(DIR_RAW)]
@@ -98,9 +114,15 @@ if __name__ == "__main__":
     start_time = datetime.now()
     logger.info(f"Início do processamento em: {start_time}")
 
-    # Processamento e salvamento de cada imagem usando starmap
-    with ProcessPoolExecutor(max_workers=os.cpu_count // 2) as executor:
-        executor.starmap(process_and_save_image, [(img_path, template, mask, DIR_OUTPUT) for img_path in image_paths])
+    # Função parcial para passar parâmetros fixos
+    process_func = partial(process_and_save_image, template=template, mask=mask, output_dir=DIR_OUTPUT)
+
+    # Processamento e salvamento de cada imagem usando ProcessPoolExecutor
+    with ProcessPoolExecutor(max_workers=1) as executor:
+        futures = [executor.submit(process_func, img_path) for img_path in image_paths]
+        
+        for future in as_completed(futures):
+            future.result()  # Pega o resultado para garantir que exceções sejam lançadas
 
     # Fim do processamento
     end_time = datetime.now()

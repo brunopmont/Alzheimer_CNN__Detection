@@ -1,9 +1,4 @@
 import os
-from helpers import *
-import numpy as np
-import nibabel as nib
-import pydicom
-import ants
 import SimpleITK as sitk
 from concurrent.futures import ProcessPoolExecutor
 
@@ -32,19 +27,12 @@ def load_dicom_series(input_folder):
 def save_as_nifti(image, output_file):
     sitk.WriteImage(image, output_file)
 
-def reorient_image(image):
-    # Reorienta a imagem para o sistema padrão RAS (Right, Anterior, Superior)
-    return sitk.DICOMOrient(image, 'IAL')
-
 def convert_dicom_to_nifti(input_folder, output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
     # Carrega a série DICOM
     image = load_dicom_series(input_folder)
-
-    # Reorienta a imagem para o padrão RAS
-    # image = reorient_image(image)
 
     # Formar nome de saída
     output_name = arq_nii(os.path.basename(input_folder))
