@@ -53,19 +53,19 @@ def process_image(img_path, template, mask):
         # Registro (Registration) com as transformações para a imagem e máscara, com intuito de melhorar o corte
         registration = ants.registration(fixed=template, moving=image, type_of_transform='Translation')
         warped_image = registration['warpedmovout']
-        warped_mask = ants.apply_transforms(fixed=template, moving=mask, transformlist=registration['fwdtransforms'])
+        #warped_mask = ants.apply_transforms(fixed=template, moving=mask, transformlist=registration['fwdtransforms'])
 
         registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='Rigid')
         warped_image = registration['warpedmovout']
-        warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
+        #warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
 
         registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='Affine')
         warped_image = registration['warpedmovout']
-        warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
+        #warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
 
         registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='SyN')
         warped_image = registration['warpedmovout']
-        warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
+        #warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
         
         #logger.info(f"Registro completo para a imagem e máscara: {img_path}")
 
@@ -95,9 +95,9 @@ def process_and_save_image(img_path, template, mask, output_dir):
         gc.collect()
 
 # DIRETÓRIOS
-DIR_BASE = os.path.abspath('/mnt/d/ADNI/ADNI1')
+DIR_BASE = os.path.abspath('/mnt/d/ADNI/ADNI2')
 DIR_RAW = os.path.join(DIR_BASE, 'ADNI_nii_raw')
-DIR_OUTPUT = os.path.join(DIR_BASE, 'ADNI_testing_images')
+DIR_OUTPUT = os.path.join(DIR_BASE, 'ADNI_nii_processed')
 DIR_MASK = os.path.join(DIR_BASE, 'mni_icbm152_nlin_asym_09c')
 
 template_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
@@ -107,7 +107,8 @@ template = ants.image_read(template_path)
 mask = ants.image_read(mask_path)
 
 # Lista de caminhos para as imagens brutas
-image_paths = [os.path.join(DIR_RAW, file) for file in os.listdir(DIR_RAW)]
+already_processed = [file for file in os.listdir(DIR_OUTPUT)]
+image_paths = [os.path.join(DIR_RAW, file) for file in os.listdir(DIR_RAW) if file not in already_processed]
 
 # Início do processamento
 if __name__ == "__main__":
@@ -118,7 +119,7 @@ if __name__ == "__main__":
     process_func = partial(process_and_save_image, template=template, mask=mask, output_dir=DIR_OUTPUT)
 
     # Processamento e salvamento de cada imagem usando ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=1) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         futures = [executor.submit(process_func, img_path) for img_path in image_paths]
         
         for future in as_completed(futures):
