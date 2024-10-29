@@ -1,0 +1,46 @@
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04
+
+# Evitar prompts durante a instalação de pacotes
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Instala software-properties-common e bibliotecas necessárias
+RUN apt-get update && \
+    apt-get install --yes software-properties-common python3.10 python3-pip && \
+    ln -s /usr/bin/python3.10 /usr/bin/python && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Instala as bibliotecas necessárias diretamente em um único comando
+RUN pip install --no-cache-dir \
+        tensorflow-gpu==2.10.0 \
+        numpy==1.23.1 \
+        pandas==1.3.3 \
+        scipy==1.5.4 \
+        scikit-learn==1.0.2 \
+        nibabel==3.2.2 \
+        matplotlib>=3.4.0
+
+# Define variáveis de ambiente para os diretórios
+ARG BASE_DIR="/path/to/default/input"
+ENV INPUT_DIR=${BASE_DIR}
+
+# Cria um usuário não privilegiado
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+
+# Troca para o usuário não privilegiado
+USER appuser
+
+# Copia o código-fonte para o contêiner
+COPY --chown=appuser:appuser . .
+
+# Comando para executar a aplicação com suporte a argumentos
+ENTRYPOINT ["python", "/repo/src/cnn_network.py"]
+CMD ["--base_dir", "/default/base/path"]

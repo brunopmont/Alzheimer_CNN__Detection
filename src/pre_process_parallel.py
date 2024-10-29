@@ -38,12 +38,10 @@ def process_image(img_path, template, mask):
         
         # Winsorizing
         data = winsorize_image(data)
-        #logger.info(f"Winsorizing imagem: {img_path}")
 
         # Bias Field Correction
         image = ants.from_numpy(data, origin=image.origin, spacing=image.spacing, direction=image.direction)
         image = ants.n4_bias_field_correction(image, shrink_factor=2)
-        #logger.info(f"Campo de vies corrigido: {img_path}")
 
         # Reaplica winsorizing
         data = image.numpy()
@@ -53,21 +51,15 @@ def process_image(img_path, template, mask):
         # Registro (Registration) com as transformações para a imagem e máscara, com intuito de melhorar o corte
         registration = ants.registration(fixed=template, moving=image, type_of_transform='Translation')
         warped_image = registration['warpedmovout']
-        #warped_mask = ants.apply_transforms(fixed=template, moving=mask, transformlist=registration['fwdtransforms'])
 
         registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='Rigid')
         warped_image = registration['warpedmovout']
-        #warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
 
         registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='Affine')
         warped_image = registration['warpedmovout']
-        #warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
 
         registration = ants.registration(fixed=template, moving=warped_image, type_of_transform='SyN')
         warped_image = registration['warpedmovout']
-        #warped_mask = ants.apply_transforms(fixed=template, moving=warped_mask, transformlist=registration['fwdtransforms'])
-        
-        #logger.info(f"Registro completo para a imagem e máscara: {img_path}")
 
         # Máscara do cérebro e extração
         brain_masked = ants.mask_image(warped_image, mask)

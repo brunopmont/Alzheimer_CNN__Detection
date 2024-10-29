@@ -1,0 +1,5 @@
+tensorflow-gpu==2.10.0
+numpy==1.23.1
+scikit-learn==1.0.2
+nibabel==3.2.2
+matplotlib>=3.4.0
