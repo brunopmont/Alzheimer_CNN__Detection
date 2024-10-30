@@ -16,3 +16,5 @@ services:
     volumes:
       - "./:/repo/"
       - "/home/sallesfelipe/:/app"
+    environment:
+      - BASE_DIR=/app

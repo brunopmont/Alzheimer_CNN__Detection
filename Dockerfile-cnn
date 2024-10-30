@@ -24,23 +24,16 @@ RUN pip install --no-cache-dir \
 ARG BASE_DIR="/path/to/default/input"
 ENV INPUT_DIR=${BASE_DIR}
 
-# Cria um usuário não privilegiado
-ARG UID=10001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    appuser
+# Cria um usuário não-root com IDs fixos
+RUN addgroup --gid 10001 appgroup && \
+    adduser --disabled-password --gecos "" --uid 10001 --gid 10001 appuser
 
-# Troca para o usuário não privilegiado
+# Troca para o usuário não-root
 USER appuser
 
 # Copia o código-fonte para o contêiner
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appgroup . .
 
 # Comando para executar a aplicação com suporte a argumentos
-ENTRYPOINT ["python", "/repo/src/cnn_network.py"]
-CMD ["--base_dir", "/default/base/path"]
+ENTRYPOINT ["python3", "/repo/src/cnn_network.py"]
+CMD ["--base_dir", "/tmp/results"]
