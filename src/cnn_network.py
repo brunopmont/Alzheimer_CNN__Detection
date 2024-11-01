@@ -6,9 +6,9 @@ from sklearn.utils import shuffle
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Input, Conv3D, MaxPooling3D, Flatten, Dense, Dropout, BatchNormalization, Activation
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 import os
-from tensorflow.keras.optimizers import Adam
 
 # Função para carregar imagens NIfTI, seus rótulos e cortar as imagens
 def load_nifti_images_with_labels(base_dir, slice_idx):
@@ -163,8 +163,7 @@ def plot_history(history, results_dir):
     plt.close()
 
 # Salvar hiperparâmetros
-def save_hyperparameters(model):
-    results_dir = 'results'
+def save_hyperparameters(model, results_dir):
     n = len(os.listdir(results_dir))
     folder_name = "test_" + str(n+1)
     results_dir = os.path.join(results_dir, folder_name)
