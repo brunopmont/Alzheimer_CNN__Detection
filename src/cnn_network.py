@@ -9,6 +9,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 import os
+import sys
 
 # Função para carregar imagens NIfTI, seus rótulos e cortar as imagens
 def load_nifti_images_with_labels(base_dir, slice_idx):
@@ -171,11 +172,18 @@ def save_hyperparameters(model, results_dir):
     with open(os.path.join(results_dir, "model_hyperparameters.txt"), "w") as f:
             f.write(model.get_config())
 
+base_path = ''
+
+# Caminho base
+if len(sys.argv > 1):
+    base_path = sys.argv[1]
+else:
+    base_path = os.getcwd
 
 # Definindo caminhos
-train_dir = 'train'
-val_dir = 'validation'
-results_dir = 'results'
+train_dir = os.path.join(base_path, 'train')
+val_dir = os.path.join(base_path, 'validation')
+results_dir = os.path.join(base_path, 'results')
 
 # Índices de corte para o corte NIfTI
 SLICE_NII_IDX0 = slice(24, 169)

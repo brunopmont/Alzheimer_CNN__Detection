@@ -8,6 +8,7 @@ from datetime import datetime
 from functools import partial
 from concurrent.futures import as_completed
 import gc
+import sys
 
 # Configuração do logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -76,46 +77,60 @@ def process_image(img_path, template, mask):
         return None
 
 # Função que processa e salva uma imagem
-def process_and_save_image(img_path, template, mask, output_dir):
+def process_and_save_image(img_path, template, mask, output_dir, subfolder):
     normalized_image = process_image(img_path, template, mask)
     if normalized_image is not None:
-        output_path = os.path.abspath(os.path.join(output_dir, os.path.basename(img_path)))
+        output_path = os.path.join(output_dir, subfolder)
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_path, os.path.basename(img_path))
         ants.image_write(normalized_image, output_path)
         logger.info(f"Imagem salva: {output_path}")
         # Liberar a memória manualmente
         normalized_image = None
         gc.collect()
 
-# DIRETÓRIOS
-DIR_BASE = os.path.abspath('/mnt/d/ADNI/ADNI2')
-DIR_RAW = os.path.join(DIR_BASE, 'ADNI_nii_raw')
-DIR_OUTPUT = os.path.join(DIR_BASE, 'ADNI_nii_processed')
-DIR_MASK = os.path.join(DIR_BASE, 'mni_icbm152_nlin_asym_09c')
-
-template_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
-mask_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c_mask.nii')
-
-template = ants.image_read(template_path)
-mask = ants.image_read(mask_path)
-
-# Lista de caminhos para as imagens brutas
-already_processed = [file for file in os.listdir(DIR_OUTPUT)]
-image_paths = [os.path.join(DIR_RAW, file) for file in os.listdir(DIR_RAW) if file not in already_processed]
-
 # Início do processamento
 if __name__ == "__main__":
+    # DIRETÓRIOS
+    DIR_RAW = ''
+    DIR_OUTPUT = ''
+    DIR_MASK = ''
+
+    if len(sys.argv < 1):
+        DIR_RAW = os.path.abspath('/mnt/e/ADNI_8k/1.7K - REPEAT')
+        DIR_OUTPUT = os.path.abspath('/mnt/e/full_nii_adni')
+        DIR_MASK = os.path.abspath('/mnt/e/ADNI/ADNI2/mni_icbm152_nlin_asym_09c')
+    else:
+        DIR_RAW = sys.argv[1]
+        DIR_OUTPUT = sys.argv[2]
+        DIR_MASK = sys.argv[3]
+
+    template_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
+    mask_path = os.path.join(DIR_MASK, 'mni_icbm152_t1_tal_nlin_asym_09c_mask.nii')
+
+    template = ants.image_read(template_path)
+    mask = ants.image_read(mask_path)
+
     start_time = datetime.now()
     logger.info(f"Início do processamento em: {start_time}")
 
-    # Função parcial para passar parâmetros fixos
-    process_func = partial(process_and_save_image, template=template, mask=mask, output_dir=DIR_OUTPUT)
+    for names in os.listdir(DIR_RAW):
 
-    # Processamento e salvamento de cada imagem usando ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_func, img_path) for img_path in image_paths]
-        
-        for future in as_completed(futures):
-            future.result()  # Pega o resultado para garantir que exceções sejam lançadas
+        input_path = os.path.join(DIR_RAW, names)
+
+        # Lista de caminhos para as imagens brutas
+        already_processed = [file for file in os.listdir(DIR_OUTPUT)]
+        image_paths = [os.path.join(input_path, file) for file in os.listdir(input_path) if file not in already_processed]
+
+        # Função parcial para passar parâmetros fixos
+        process_func = partial(process_and_save_image, template=template, mask=mask, output_dir=DIR_OUTPUT, subfolder=names)
+
+        # Processamento e salvamento de cada imagem usando ProcessPoolExecutor
+        with ProcessPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(process_func, img_path) for img_path in image_paths]
+            
+            for future in as_completed(futures):
+                future.result()  # Pega o resultado para garantir que exceções sejam lançadas
 
     # Fim do processamento
     end_time = datetime.now()

@@ -1,18 +1,9 @@
 import os
 import SimpleITK as sitk
 from concurrent.futures import ProcessPoolExecutor
-
-# DIRETÓRIOS
-DIR_BASE = os.path.abspath('/mnt/d/ADNI/ADNI2')
-#DIR_DICOM = os.path.abspath(os.path.join(DIR_BASE, 'ADNI2_Screening', 'ADNI 2 Screening - New Pt', 'ADNI'))
-DIR_DICOM = os.path.abspath(os.path.join(DIR_BASE, 'ADNI2_Screening'))
-DIR_FILES = [folder for folder in os.listdir(DIR_DICOM)]
-DIR_RAW = os.path.join(DIR_BASE, 'ADNI_nii_raw')
+import sys
 
 # FUNÇÕES
-def arq_nii(name):
-    return name + ".nii.gz"
-
 def get_f_dir(directory):
     sub_item = os.listdir(directory)
     directory = os.path.abspath(os.path.join(directory, sub_item[0]))
@@ -33,11 +24,13 @@ def reorient_image(image):
     return sitk.DICOMOrient(image, 'RAS')
 
 def convert_dicom_to_nifti(input_folder, output_folder):
-
-    # Formar nome de saída
-    output_name = arq_nii(os.path.basename(input_folder))
+    # Formar nome de saída pelo 'S_...'
+    output_name = os.path.basename(input_folder) + '.nii.gz'
 
     input_folder = get_f_dir(get_f_dir(os.path.join(input_folder, 'MPRAGE')))
+
+    # Formar nome de saída peçp 'I...'
+    #output_name = os.path.basename(input_folder) + '.nii.gz'
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -60,24 +53,33 @@ def convert_dicom_to_nifti(input_folder, output_folder):
 # CONVERSÃO
 if __name__ == "__main__":
 
-    output_folder = DIR_RAW
+    DIR_BASE = ''
+    DIR_RAW = ''
 
-    dir_files = DIR_FILES
+    # DIRETÓRIOS
+    if len(sys.argv < 1):
+        DIR_BASE = os.path.abspath('/mnt/e/ADNI_8k/1.7K - REPEAT')
+        DIR_RAW = os.path.join('/mnt/e/full_dataset', os.path.basename(DIR_BASE))
+    else:
+        DIR_BASE = sys.argv[1] #Endereço do diretório com as subpastas que contem as pastas dos arquivos dicom
+        DIR_RAW = os.path.join(sys.argv[2], os.path.basename(DIR_BASE)) #endereço do diretório de Saída
 
-    for names in dir_files:
-        print(f"CONVERSÕES {names}")
+    for names in DIR_BASE:
+        print(f"CONVERSOES DA PASTA {names}")
 
-        input_folder = os.path.abspath(os.path.join(DIR_BASE, 'ADNI2_Screening', names, 'ADNI'))
+        input_folder = os.path.abspath(os.path.join(DIR_BASE, names, 'ADNI'))
+
+        output_folder = os.path.abspath(os.path.join(DIR_RAW, names))
 
         # Coletar todas as pastas DICOM
         dicom_folders = [os.path.join(input_folder, folder) for folder in os.listdir(input_folder)]
 
-        with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as executor:
+        with ProcessPoolExecutor(16) as executor:
             futures = {executor.submit(convert_dicom_to_nifti, folder, output_folder): folder for folder in dicom_folders}
             
             for future in futures:
                 try:
-                    future.result()  # Isso irá levantar qualquer exceção que ocorreu
+                    future.result()  # Relata erros
                 except Exception as e:
                     print(f"Erro ao processar {futures[future]}: {e}")
 
